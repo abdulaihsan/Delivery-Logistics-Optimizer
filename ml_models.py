@@ -159,6 +159,16 @@ def generate_interpretability_report(model, X_train, X_test):
     print("Interpretability report generated.")
 
 
+#Model 3 (additional) Logarithimic Regression
+X_train_log = X_train.copy()
+X_test_log = X_test.copy()
+X_train_log['MILES'] = np.log(X_train['MILES'] + 1)
+X_test_log['MILES'] = np.log(X_test['MILES'] + 1)
+log_model = LinearRegression()
+log_model.fit(X_train_log, y_train)
+y_pred_log = log_model.predict(X_test_log)
+
+
 if __name__ == "__main__":
     try:
         generate_interpretability_report(rf_model, X_train, X_test)
