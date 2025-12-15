@@ -108,7 +108,7 @@ else:
     if 'CUSTOMERID' not in df.columns:
         df['CUSTOMERID'] = [f"Stop_{i}" for i in range(len(df))]
 
-st.dataframe(df.head(), use_container_width=True)
+st.dataframe(df.head(), width='stretch')
 
 # OPTIMIZATION SCREEN
 st.header("2. Route Optimization")
