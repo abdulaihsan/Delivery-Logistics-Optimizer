@@ -287,7 +287,7 @@ if st.session_state.get('optimization_run'):
 st.divider()
 st.header("3. AI Explainability")
 
-with st.expander("View Feature Importance (Interactive)"):
+with st.expander("View Feature Importance"):
     shap_data, status = build_model_and_explain(df)
     
     if shap_data:
