@@ -30,7 +30,7 @@ print("Data cleaning and date conversion complete.")
 df['TRAVEL_TIME_MIN'] = (df['END_DATE'] - df['START_DATE']).dt.total_seconds() / 60.0
 
 df['START_HOUR'] = df['START_DATE'].dt.hour
-df['DAY_OF_WEEK'] = df['START_DATE'].dt.dayofweek # 0=Monday, 6=Sunday
+df['DAY_OF_WEEK'] = df['START_DATE'].dt.dayofweek
 
 df = df[df['TRAVEL_TIME_MIN'] > 0]
 df = df[df['MILES'] > 0]
@@ -68,7 +68,7 @@ print(f"Encoding complete. Final features shape: {X.shape}")
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 print(f"Data split into {len(X_train)} training samples and {len(X_test)} testing samples.")
 
-# --- Train Model 1: Linear Regression (Baseline) ---
+# Model 1: Linear Regression
 print("\nTraining Linear Regression model...")
 lr_model = LinearRegression()
 lr_model.fit(X_train, y_train)
@@ -79,7 +79,7 @@ r2_lr = r2_score(y_test, y_pred_lr)
 
 print("Linear Regression training complete.")
 
-# --- Train Model 2: Random Forest (Proposed) ---
+# Model 2: Random Forest
 print("\nTraining Random Forest Regressor model...")
 rf_model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
 rf_model.fit(X_train, y_train)
@@ -122,16 +122,12 @@ def generate_interpretability_report(model, X_train, X_test):
     """
     print("\n--- Generating Interpretability Report (SHAP) ---")
     
-    # 1. Create a Tree Explainer for the Random Forest
     explainer = shap.TreeExplainer(model)
     
-    # 2. Calculate SHAP values (using a sample of test data for speed)
     sample_X = X_test.iloc[:100]
     shap_values = explainer.shap_values(sample_X)
     
     print("SHAP values calculated. Generating plots...")
-
-    # 3. Summary Plot (Global Interpretability)
     plt.figure()
     shap.summary_plot(shap_values, sample_X, show=False)
     plt.title("Feature Importance (SHAP Summary)")
@@ -140,7 +136,6 @@ def generate_interpretability_report(model, X_train, X_test):
     print("Saved: shap_summary_plot.png")
     plt.close()
 
-    # 4. Dependence Plot (Feature Interaction)
     if 'MILES' in sample_X.columns and 'START_HOUR' in sample_X.columns:
         plt.figure()
         shap.dependence_plot(
@@ -159,7 +154,7 @@ def generate_interpretability_report(model, X_train, X_test):
     print("Interpretability report generated.")
 
 
-#Model 3 (additional) Logarithimic Regression
+# Model 3 Logarithimic Regression
 X_train_log = X_train.copy()
 X_test_log = X_test.copy()
 X_train_log['MILES'] = np.log(X_train['MILES'] + 1)

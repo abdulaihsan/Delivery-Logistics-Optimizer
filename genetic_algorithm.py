@@ -3,32 +3,35 @@ import numpy as np
 import pandas as pd
 from math import radians, sin, cos, sqrt, atan2
 
-# Import your existing modules
-# Ensure ml_models.py and pathfinding.py are in the same folder
 try:
     from ml_models import rf_model, encoder
     ML_AVAILABLE = True
 except ImportError:
-    ML_AVAILABLE = False  # Fallback if running standalone
+    ML_AVAILABLE = False
+
+try:
+    from pathfinding import PathFinder
+    PATHFINDING_AVAILABLE = True
+except ImportError:
+    PATHFINDING_AVAILABLE = False
+    print("Warning: pathfinding.py not found. Reverting to straight-line distance.")
 
 class RouteOptimizerGA:
     def __init__(self, locations, population_size=50, mutation_rate=0.01, generations=100):
-        """
-        Genetic Algorithm for VRPTW.
-        :param locations: List of tuples [(lat, lon), ...]
-        """
         self.locations = locations
         self.pop_size = population_size
         self.mutation_rate = mutation_rate
         self.generations = generations
         self.population = []
         
-        # --- OPTIMIZATION: Pre-calculate Cost Matrix ---
-        # This prevents running the ML model 50,000 times during the loop
+        if PATHFINDING_AVAILABLE:
+            self.pathfinder = PathFinder()
+        
         self.cost_matrix = self._build_cost_matrix()
 
     def _haversine(self, coords1, coords2):
-        R = 6371000  # Meters
+        """Fallback geometry calculation if A* fails or isn't available."""
+        R = 6371000 
         lat1, lon1 = radians(coords1[0]), radians(coords1[1])
         lat2, lon2 = radians(coords2[0]), radians(coords2[1])
         dlon = lon2 - lon1
@@ -38,13 +41,14 @@ class RouteOptimizerGA:
         return R * c
 
     def _build_cost_matrix(self):
-        """Pre-calculates distance and time between all pairs of locations."""
+        """Pre-calculates A* distance and ML time between all pairs."""
         n = len(self.locations)
         matrix = {}
         
-        # Prepare batch data for ML prediction to run it ONCE
         ml_inputs = []
         pairs_map = []
+
+        print("Building Cost Matrix (Calculating Paths)...")
 
         for i in range(n):
             for j in range(n):
@@ -52,14 +56,17 @@ class RouteOptimizerGA:
                     matrix[(i, j)] = (0, 0)
                     continue
                 
-                dist_meters = self._haversine(self.locations[i], self.locations[j])
+                if PATHFINDING_AVAILABLE:
+                    dist_meters = self.pathfinder.get_astar_distance(self.locations[i], self.locations[j])
+                else:
+                    dist_meters = self._haversine(self.locations[i], self.locations[j])
+                
                 dist_miles = dist_meters / 1609.34
                 
-                # Store data for batch ML prediction
                 ml_inputs.append({
                     'MILES': dist_miles,
-                    'START_HOUR': 9,      # Default assumption
-                    'DAY_OF_WEEK': 0,     # Default (Monday)
+                    'START_HOUR': 9,
+                    'DAY_OF_WEEK': 0,
                     'CATEGORY': 'Business',
                     'PURPOSE': 'Unknown',
                     'START_LOC': 'Other',
@@ -67,11 +74,9 @@ class RouteOptimizerGA:
                 })
                 pairs_map.append((i, j, dist_meters))
 
-        # Run ML Prediction in Batch (Huge Speedup)
         if ML_AVAILABLE and len(ml_inputs) > 0:
             input_df = pd.DataFrame(ml_inputs)
             
-            # Encode categorical features exactly like in training
             categorical_cols = ['CATEGORY', 'PURPOSE', 'START_LOC', 'STOP_LOC']
             encoded_cats = encoder.transform(input_df[categorical_cols])
             encoded_df = pd.DataFrame(encoded_cats, columns=encoder.get_feature_names_out())
@@ -81,18 +86,15 @@ class RouteOptimizerGA:
             
             predicted_times = rf_model.predict(X_final)
         else:
-            # Fallback if ML libs missing
             predicted_times = [x['MILES'] * 2.5 for x in ml_inputs]
 
-        # Fill Matrix
         for k, (i, j, dist) in enumerate(pairs_map):
             matrix[(i, j)] = (dist, predicted_times[k])
             
         return matrix
 
     def create_individual(self):
-        """Creates a random permutation (Depot -> Random Stops -> Depot)."""
-        # Indices 1 to N-1 (excluding 0 which is the depot/start)
+        """Creating random permutation (Depot -> Random Stops -> Depot)."""
         indices = list(range(1, len(self.locations)))
         random.shuffle(indices)
         return [0] + indices + [0]
@@ -107,12 +109,10 @@ class RouteOptimizerGA:
         
         for i in range(len(individual) - 1):
             u, v = individual[i], individual[i+1]
-            # Lookup from matrix instead of recalculating
             d, t = self.cost_matrix.get((u, v), (0,0))
             total_distance += d
             total_time += t
             
-        # Fitness is inverse of cost (we want to minimize distance)
         return 1 / (total_distance + 1e-5)
 
     def selection(self):
@@ -128,7 +128,6 @@ class RouteOptimizerGA:
     def crossover(self, parent1, parent2):
         """Ordered Crossover (OX1)."""
         size = len(parent1) - 2 
-        # Handle small routes (e.g. only 2 points)
         if size < 1: return parent1
         
         start, end = sorted(random.sample(range(1, size + 1), 2))
@@ -155,28 +154,21 @@ class RouteOptimizerGA:
         print(f"Initializing GA optimization for {len(self.locations)} locations...")
         self.initialize_population()
         
-        # Track the absolute best route found across ALL generations
         global_best_route = None
         global_best_fitness = -float('inf')
 
         for gen in range(self.generations):
-            # 1. Find the best individual in the CURRENT population
             current_best = max(self.population, key=self.fitness)
             current_best_fitness = self.fitness(current_best)
 
-            # 2. Update Global Best if found
             if current_best_fitness > global_best_fitness:
                 global_best_fitness = current_best_fitness
                 global_best_route = current_best
             
-            # --- ELITISM: Start the new population with the best route ---
             next_pop = [global_best_route] 
 
-            # 3. Fill the rest of the population (size - 1) with children
             parents = self.selection()
             
-            # Generate enough children to fill the rest of the population
-            # We step by 2, but ensure we don't exceed pop_size
             while len(next_pop) < self.pop_size:
                 p1, p2 = random.sample(parents, 2)
                 child1 = self.crossover(p1, p2)

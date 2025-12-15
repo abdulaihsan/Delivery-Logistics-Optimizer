@@ -11,14 +11,14 @@ try:
 except ImportError:
     HAS_ML_LIBS = False
 
-# --- PAGE CONFIGURATION ---
+# PAGE CONFIGURATION
 st.set_page_config(
     page_title="Logistics Route Optimizer",
     page_icon="🚚",
     layout="wide"
 )
 
-# --- AUTHENTICATION ---
+# AUTHENTICATION
 def check_password():
     """Returns `True` if the user had the correct password."""
     def password_entered():
@@ -43,7 +43,7 @@ def check_password():
             on_change=password_entered, 
             key="password"
         )
-        st.error("😕 Password incorrect")
+        st.error("Password incorrect")
         return False
     else:
         return True
@@ -51,7 +51,7 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- SIDEBAR & CONFIG ---
+# SIDEBAR
 st.sidebar.title("Configuration")
 st.sidebar.header("Model Selection")
 
@@ -69,14 +69,14 @@ elif model_choice == "Random Forest (Proposed)":
 else:
     st.sidebar.markdown("*RMSE: 13.95 min | R²: 0.84*")
 
-# --- MAIN APP LOGIC ---
+# MAIN APP
 st.title("🚚 Logistics & Delivery Route Optimizer")
 st.markdown("""
 **Current Phase:** MVP Deployment & Validation.  
 This tool optimizes delivery routes using a **Genetic Algorithm** and predicts travel times using **Machine Learning**.
 """)
 
-# 1. DATA UPLOAD SECTION
+# DATA UPLOAD SECTION
 st.header("1. Upload Delivery Data")
 uploaded_file = st.file_uploader(
     "Upload CSV (Format: CustomerID, Latitude, Longitude, TimeWindow)", 
@@ -97,7 +97,7 @@ if not uploaded_file:
 else:
     df = pd.read_csv(uploaded_file)
     
-    # --- DATA NORMALIZATION ---
+    # DATA NORMALIZATION
     df.columns = [c.upper() for c in df.columns]
     
     if 'LATITUDE' not in df.columns or 'LONGITUDE' not in df.columns:
@@ -110,7 +110,7 @@ else:
 
 st.dataframe(df.head(), use_container_width=True)
 
-# 2. OPTIMIZATION SECTION
+# OPTIMIZATION SCREEN
 st.header("2. Route Optimization")
 col1, col2 = st.columns([1, 3])
 
@@ -119,10 +119,10 @@ with col1:
     generations = st.slider("GA Generations", min_value=10, max_value=100, value=50)
     optimize_btn = st.button("🚀 Optimize Route", type="primary")
 
-# --- BACKEND SIMULATION  ---
+# BACKEND SIMULATION
 def run_optimization_simulation(df, model_type):
     """
-    Runs the ACTUAL Genetic Algorithm using genetic_algorithm.py
+    Running genetic_algorithm.py
     """
     try:
         from genetic_algorithm import RouteOptimizerGA
@@ -131,11 +131,8 @@ def run_optimization_simulation(df, model_type):
         return 0, 0, 0, 0
 
     with st.spinner('Initializing Route Optimizer (Batch ML Processing)...'):
-        # 1. Prepare Coordinates for GA: List of (Lat, Lon) tuples
         locations = list(zip(df['LATITUDE'], df['LONGITUDE']))
         
-        # 2. Initialize GA (This triggers the Matrix Calculation)
-        # We pass generations from the slider you made
         optimizer = RouteOptimizerGA(
             locations, 
             population_size=50, 
@@ -154,66 +151,53 @@ def run_optimization_simulation(df, model_type):
         end_time = time.time()
         compute_time = end_time - start_time
 
-    # 3. Process Results
-    # Get the Optimized DataFrame based on the Best Route Indices
     optimized_df = df.iloc[best_route_indices].reset_index(drop=True)
     
-    # Calculate Metrics
-    # Original Distance (Sum of sequential points in uploaded CSV)
     original_dist = 0
     for i in range(len(df) - 1):
         original_dist += optimizer._haversine(locations[i], locations[i+1])
-    original_dist = original_dist / 1609.34 # Convert meters to miles
+    original_dist = original_dist / 1609.34 
 
-    # Optimized Distance (Sum of GA Result)
     optimized_dist = 0
     opt_locations = list(zip(optimized_df['LATITUDE'], optimized_df['LONGITUDE']))
     for i in range(len(opt_locations) - 1):
         optimized_dist += optimizer._haversine(opt_locations[i], opt_locations[i+1])
-    optimized_dist = optimized_dist / 1609.34 # Convert to miles
+    optimized_dist = optimized_dist / 1609.34
 
-    # Predicted Time (Using your logic)
     if "Linear" in model_type:
         pred_time = optimized_dist * 2.5
     elif "Logarithmic" in model_type:
         pred_time = (optimized_dist ** 0.95) * 2.2
     else:
-        # Default Random Forest / ML Logic
         pred_time = optimized_dist * 2.1
 
     return original_dist, optimized_dist, compute_time, pred_time, optimized_df
     
-
+# SHAP EXPLAINABILITY
 @st.cache_resource
 def build_model_and_explain(input_df):
     if not HAS_ML_LIBS:
         return None, "Libraries missing"
     
-    # 1. Check if we have the necessary columns 
     required_cols = ['START_DATE', 'END_DATE', 'MILES']
     if not all(col in input_df.columns for col in required_cols):
         return None, "Missing Columns"
 
     try:
-        # 2. Preprocessing
         df_ml = input_df.copy()
         df_ml = df_ml.dropna(subset=required_cols)
         
-        # Date Conversion
         df_ml['START_DATE'] = pd.to_datetime(df_ml['START_DATE'], errors='coerce')
         df_ml['END_DATE'] = pd.to_datetime(df_ml['END_DATE'], errors='coerce')
         df_ml = df_ml.dropna(subset=['START_DATE', 'END_DATE'])
         
-        # Feature Engineering
         df_ml['TRAVEL_TIME_MIN'] = (df_ml['END_DATE'] - df_ml['START_DATE']).dt.total_seconds() / 60.0
         df_ml['START_HOUR'] = df_ml['START_DATE'].dt.hour
         df_ml['DAY_OF_WEEK'] = df_ml['START_DATE'].dt.dayofweek
         
-        # Filter valid rows
         df_ml = df_ml[df_ml['TRAVEL_TIME_MIN'] > 0]
         df_ml = df_ml[df_ml['MILES'] > 0]
         
-        # Select Features
         numeric_features = ['MILES', 'START_HOUR', 'DAY_OF_WEEK']
         X = df_ml[numeric_features]
         y = df_ml['TRAVEL_TIME_MIN']
@@ -221,14 +205,11 @@ def build_model_and_explain(input_df):
         if len(X) < 10:
             return None, "Not enough data"
 
-        # 3. Train Model
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         model = RandomForestRegressor(n_estimators=50, random_state=42, max_depth=10)
         model.fit(X_train, y_train)
         
-        # 4. Generate SHAP
         explainer = shap.TreeExplainer(model)
-        # Use a small sample for speed
         sample_X = X_test.iloc[:50] if len(X_test) > 50 else X_test
         shap_values = explainer.shap_values(sample_X)
         
@@ -236,17 +217,16 @@ def build_model_and_explain(input_df):
 
     except Exception as e:
         return None, str(e)
-    
+
+# MAP CREATION    
 def create_route_map(df):
     try:
         import folium
-        # Center map on the average coordinates
         center_lat = df['LATITUDE'].mean()
         center_lon = df['LONGITUDE'].mean()
         m = folium.Map(location=[center_lat, center_lon], zoom_start=11)
 
         points = []
-        # Limit to first 50 points to prevent lag
         for index, row in df.head(50).iterrows():
             points.append([row['LATITUDE'], row['LONGITUDE']])
             folium.Marker(
@@ -262,7 +242,7 @@ def create_route_map(df):
     except Exception as e:
         return None
 
-# --- LOGIC TO HANDLE BUTTON CLICKS AND PERSISTENCE ---
+# LOGIC TO HANDLE BUTTON CLICKS AND PERSISTENCE
 if optimize_btn:
     orig_dist, opt_dist, compute_time, pred_time, optimized_df_sorted = run_optimization_simulation(df, model_choice)
     map_obj = create_route_map(optimized_df_sorted)
@@ -275,7 +255,7 @@ if optimize_btn:
     st.session_state['generated_map'] = map_obj
     st.session_state['compute_time'] = compute_time
 
-# 3. RESULTS & VISUALIZATION
+# RESULTS & VISUALIZATION
 if st.session_state.get('optimization_run'):
     orig_dist = st.session_state['orig_dist']
     opt_dist = st.session_state['opt_dist']
@@ -303,36 +283,30 @@ if st.session_state.get('optimization_run'):
             st.error(f"Map Error: {e}")
             st.write("Ensure 'streamlit-folium' is installed.")
 
-# 4. EXPLAINABILITY
+# EXPLAINABILITY
 st.divider()
 st.header("3. AI Explainability")
 
 with st.expander("View Feature Importance (Interactive)"):
-    # Try to generate real SHAP values from the current DF
     shap_data, status = build_model_and_explain(df)
     
     if shap_data:
         shap_values, sample_X = shap_data
-        st.success("✅ SHAP values generated from uploaded data.")
+        st.success("SHAP values generated from uploaded data.")
         
-        # --- MAKE SHAP INTERACTIVE ---
-        # 1. Calculate Mean Absolute SHAP Value per feature (Global Importance)
         feature_importance = np.abs(shap_values).mean(axis=0)
         
-        # 2. Create DataFrame for Streamlit
         importance_df = pd.DataFrame({
             "Feature": sample_X.columns,
             "Importance": feature_importance
         }).sort_values(by="Importance", ascending=False)
         
-        # 3. Render Interactive Bar Chart
         st.markdown("####Feature Importance")
         st.bar_chart(importance_df, x="Feature", y="Importance")
         
         st.caption("This chart shows the average impact of each feature on predicted travel time (calculated live via Random Forest).")
             
     else:
-        # Fallback for Mock Data
         st.warning(f"Could not generate live SHAP plots: {status}.")
         st.info("Displaying pre-computed reference charts instead.")
         
@@ -343,4 +317,4 @@ with st.expander("View Feature Importance (Interactive)"):
         st.bar_chart(chart_data, x="Feature", y="Importance")
 
 st.markdown("---")
-st.caption("Delivery Optimizer | Abdullah Ihsan (2023039), Aazeb Ali (2023003) & Syed Faseeh (2023689)")
+st.caption("Delivery Optimizer | Abdullah Ihsan (2023039), Aazeb Ali (2023003)")
