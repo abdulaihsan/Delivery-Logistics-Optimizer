@@ -4,14 +4,22 @@ from math import radians, sin, cos, sqrt, atan2
 
 class PathFinder:
     _shared_graph = None 
+    _current_center = None
 
     def __init__(self, center_lat=47.6062, center_lon=-122.3321, dist=5000):
         """
         Initializes the road network graph.
-        :param dist: Radius in meters. Increased to 5000m to cover app.py mock data.
         """
-        if PathFinder._shared_graph is None:
-            print(f"Loading street network graph (Radius: {dist}m)...")
+        is_new_location = True
+
+        if PathFinder._current_center:
+            lat_diff = abs(PathFinder._current_center[0] - center_lat)
+            lon_diff = abs(PathFinder._current_center[1] - center_lon)
+            if lat_diff < 0.01 and lon_diff < 0.01:
+                is_new_location = False
+        
+        if PathFinder._shared_graph is None or is_new_location:
+            print(f"Loading street network graph (Lat: {center_lat}, Lon: {center_lon}, Radius: {dist}m)...")
 
             G = ox.graph_from_point(
                 (center_lat, center_lon), 
@@ -21,6 +29,7 @@ class PathFinder:
             G = ox.add_edge_speeds(G)
             G = ox.add_edge_travel_times(G)
             PathFinder._shared_graph = G
+            PathFinder._current_center = (center_lat, center_lon)
             print("Graph loaded successfully.")
         
         self.G = PathFinder._shared_graph
@@ -63,6 +72,31 @@ class PathFinder:
             return length
         except nx.NetworkXNoPath:
             return self._haversine_heuristic(orig_node, dest_node)
+        
+    def get_route_coords(self, start_coords, end_coords):
+        """
+        Returns a list of (lat, lon) tuples representing the driving path.
+        """
+        orig_node = ox.nearest_nodes(self.G, start_coords[1], start_coords[0])
+        dest_node = ox.nearest_nodes(self.G, end_coords[1], end_coords[0])
+
+        if orig_node == dest_node:
+            return [start_coords]
+
+        try:
+            path_nodes = nx.astar_path(
+                self.G, 
+                source=orig_node, 
+                target=dest_node, 
+                weight="length", 
+                heuristic=self._haversine_heuristic
+            )
+            
+            path_coords = [(self.G.nodes[n]['y'], self.G.nodes[n]['x']) for n in path_nodes]
+            return path_coords
+            
+        except (nx.NetworkXNoPath, Exception):
+            return [start_coords, end_coords]
 
 if __name__ == "__main__":
     pf = PathFinder()

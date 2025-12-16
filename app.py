@@ -222,24 +222,42 @@ def build_model_and_explain(input_df):
 def create_route_map(df):
     try:
         import folium
+        from pathfinding import PathFinder
         center_lat = df['LATITUDE'].mean()
         center_lon = df['LONGITUDE'].mean()
         m = folium.Map(location=[center_lat, center_lon], zoom_start=11)
 
-        points = []
-        for index, row in df.head(50).iterrows():
-            points.append([row['LATITUDE'], row['LONGITUDE']])
+        pf = PathFinder(center_lat=center_lat, center_lon=center_lon)
+
+        locations = list(zip(df['LATITUDE'], df['LONGITUDE']))
+        for index, row in df.iterrows():
             folium.Marker(
                 [row['LATITUDE'], row['LONGITUDE']], 
                 popup=f"ID: {row['CUSTOMERID']}",
                 icon=folium.Icon(color="blue", icon="truck", prefix="fa")
             ).add_to(m)
+        
+        full_route_points = []
 
-        if len(points) > 1:
-            folium.PolyLine(points, color="red", weight=3, opacity=0.7).add_to(m)
+        if len(locations) > 1:
+            with st.spinner("Calculating actual street paths for map..."):
+                for i in range(len(locations) - 1):
+                    start = locations[i]
+                    end = locations[i+1]
+                    
+                    segment = pf.get_route_coords(start, end)
+                    full_route_points.extend(segment)
+        
+        folium.PolyLine(
+                full_route_points, 
+                color="red", 
+                weight=4, 
+                opacity=0.7
+            ).add_to(m)
         
         return m
     except Exception as e:
+        st.error(f"Map Generation Error: {e}")
         return None
 
 # LOGIC TO HANDLE BUTTON CLICKS AND PERSISTENCE

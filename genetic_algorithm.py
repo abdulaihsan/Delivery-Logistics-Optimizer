@@ -4,7 +4,7 @@ import pandas as pd
 from math import radians, sin, cos, sqrt, atan2
 
 try:
-    from ml_models import rf_model, encoder
+    from ml_models import rf_model, encoder, lr_model
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -25,7 +25,17 @@ class RouteOptimizerGA:
         self.population = []
         
         if PATHFINDING_AVAILABLE:
-            self.pathfinder = PathFinder()
+
+            lats = [loc[0] for loc in locations]
+            lons = [loc[1] for loc in locations]
+            center_lat = sum(lats) / len(lats)
+            center_lon = sum(lons) / len(lons)
+
+            max_lat_diff = max(abs(lat - center_lat) for lat in lats)
+            max_lon_diff = max(abs(lon - center_lon) for lon in lons)
+            radius = max(max_lat_diff, max_lon_diff) * 111000 + 2000 
+            
+            self.pathfinder = PathFinder(center_lat=center_lat, center_lon=center_lon, dist=radius)
         
         self.cost_matrix = self._build_cost_matrix()
 
@@ -76,7 +86,7 @@ class RouteOptimizerGA:
 
         if ML_AVAILABLE and len(ml_inputs) > 0:
             input_df = pd.DataFrame(ml_inputs)
-            
+
             categorical_cols = ['CATEGORY', 'PURPOSE', 'START_LOC', 'STOP_LOC']
             encoded_cats = encoder.transform(input_df[categorical_cols])
             encoded_df = pd.DataFrame(encoded_cats, columns=encoder.get_feature_names_out())
@@ -84,7 +94,7 @@ class RouteOptimizerGA:
             X_numeric = input_df[['MILES', 'START_HOUR', 'DAY_OF_WEEK']]
             X_final = pd.concat([X_numeric, encoded_df], axis=1)
             
-            predicted_times = rf_model.predict(X_final)
+            predicted_times = lr_model.predict(X_final)
         else:
             predicted_times = [x['MILES'] * 2.5 for x in ml_inputs]
 
