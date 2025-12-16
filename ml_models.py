@@ -90,15 +90,38 @@ r2_rf = r2_score(y_test, y_pred_rf)
 
 print("Random Forest training complete.")
 
+# Model 3: Logarithmic Regression
+print("\nTraining Logarithmic Regression model...")
+
+X_train_log = X_train.copy()
+X_test_log = X_test.copy()
+
+X_train_log['MILES'] = np.log1p(X_train['MILES'])
+X_test_log['MILES'] = np.log1p(X_test['MILES'])
+
+log_model = LinearRegression()
+log_model.fit(X_train_log, y_train)
+
+y_pred_log = log_model.predict(X_test_log)
+
+rmse_log = np.sqrt(mean_squared_error(y_test, y_pred_log))
+r2_log = r2_score(y_test, y_pred_log)
+
+print("Logarithmic Regression training complete.")
+
 print("\n\n--- Progress Report 2: Model Evaluation ---")
 print("---------------------------------------------")
-print(f"Baseline Model: Linear Regression")
+print(f"Model 1: Linear Regression (Baseline)")
 print(f"  RMSE: {rmse_lr:.2f} minutes")
 print(f"  R2 Score: {r2_lr:.4f}")
 print("\n")
-print(f"Proposed Model: Random Forest Regressor")
+print(f"Model 2: Random Forest Regressor (Proposed)")
 print(f"  RMSE: {rmse_rf:.2f} minutes")
 print(f"  R2 Score: {r2_rf:.4f}")
+print("\n")
+print(f"Model 3: Logarithmic Regression")
+print(f"  RMSE: {rmse_log:.2f} minutes")
+print(f"  R2 Score: {r2_log:.4f}")
 print("---------------------------------------------")
 
 print("\n--- Sample Predictions vs. Actual (Linear Regression) ---")
@@ -114,6 +137,13 @@ rf_predictions_df = pd.DataFrame({
     'Predicted Travel Time (min)': y_pred_rf[:5]
 })
 print(rf_predictions_df.round(2).to_string())
+
+print("\n--- Sample Predictions vs. Actual (Logarithmic Regression) ---")
+log_predictions_df = pd.DataFrame({
+    'Actual Travel Time (min)': y_test.head(),
+    'Predicted Travel Time (min)': y_pred_log[:5]
+})
+print(log_predictions_df.round(2).to_string())
 
 def generate_interpretability_report(model, X_train, X_test):
     """
@@ -152,17 +182,6 @@ def generate_interpretability_report(model, X_train, X_test):
         plt.close()
 
     print("Interpretability report generated.")
-
-
-# Model 3 Logarithimic Regression
-X_train_log = X_train.copy()
-X_test_log = X_test.copy()
-X_train_log['MILES'] = np.log(X_train['MILES'] + 1)
-X_test_log['MILES'] = np.log(X_test['MILES'] + 1)
-log_model = LinearRegression()
-log_model.fit(X_train_log, y_train)
-y_pred_log = log_model.predict(X_test_log)
-
 
 if __name__ == "__main__":
     try:

@@ -63,11 +63,11 @@ model_choice = st.sidebar.radio(
 st.sidebar.info(f"Currently using: **{model_choice}**")
 
 if model_choice == "Linear Regression (Baseline)":
-    st.sidebar.markdown("*RMSE: 14.24 min | R²: 0.82*")
+    st.sidebar.markdown("*RMSE: 8.37 min | R²: 0.84*")
 elif model_choice == "Random Forest (Proposed)":
-    st.sidebar.markdown("*RMSE: 15.69 min | R²: 0.78*")
+    st.sidebar.markdown("*RMSE: 11.46 min | R²: 0.70*")
 else:
-    st.sidebar.markdown("*RMSE: 13.95 min | R²: 0.84*")
+    st.sidebar.markdown("*RMSE: 13.1 min | R²: 0.61*")
 
 # MAIN APP
 st.title("🚚 Logistics & Delivery Route Optimizer")
@@ -167,9 +167,9 @@ def run_optimization_simulation(df, model_type):
     if "Linear" in model_type:
         pred_time = optimized_dist * 2.5
     elif "Logarithmic" in model_type:
-        pred_time = (optimized_dist ** 0.95) * 2.2
+        pred_time = optimized_dist * 2
     else:
-        pred_time = optimized_dist * 2.1
+        pred_time = optimized_dist * 2.25
 
     return original_dist, optimized_dist, compute_time, pred_time, optimized_df
     
