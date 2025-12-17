@@ -5,3 +5,4 @@ streamlit-folium
 scikit-learn
 matplotlib
 shap
+osmnx
