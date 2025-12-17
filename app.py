@@ -165,9 +165,9 @@ def run_optimization_simulation(df, model_type):
     optimized_dist = optimized_dist / 1609.34
 
     if "Linear" in model_type:
-        pred_time = optimized_dist * 2.5
-    elif "Logarithmic" in model_type:
         pred_time = optimized_dist * 2
+    elif "Logarithmic" in model_type:
+        pred_time = optimized_dist * 2.5
     else:
         pred_time = optimized_dist * 2.25
 
