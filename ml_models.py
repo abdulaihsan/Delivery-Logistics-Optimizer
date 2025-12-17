@@ -2,6 +2,7 @@ import shap
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import csv
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
@@ -64,6 +65,10 @@ y = df['TRAVEL_TIME_MIN']
 X = X_final
 
 print(f"Encoding complete. Final features shape: {X.shape}")
+
+print(df.head())
+
+df.to_csv("processed_uber_data.csv", index=False)
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 print(f"Data split into {len(X_train)} training samples and {len(X_test)} testing samples.")
