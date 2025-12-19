@@ -3,6 +3,9 @@ import pandas as pd
 import time
 import random
 import numpy as np
+import os
+from datetime import datetime
+
 try:
     import shap
     from sklearn.ensemble import RandomForestRegressor
@@ -10,6 +13,53 @@ try:
     HAS_ML_LIBS = True
 except ImportError:
     HAS_ML_LIBS = False
+
+# TRAFFIC MONITORING SYSTEM
+TRAFFIC_LOG_FILE = "traffic_log.csv"
+
+def log_event(event_type):
+    """
+    Logs an event (Visit, Optimization, etc.) to a CSV file with a timestamp.
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Create file with headers if it doesn't exist
+    if not os.path.exists(TRAFFIC_LOG_FILE):
+        with open(TRAFFIC_LOG_FILE, "w") as f:
+            f.write("Timestamp,Event\n")
+    
+    # Append the new event
+    with open(TRAFFIC_LOG_FILE, "a") as f:
+        f.write(f"{timestamp},{event_type}\n")
+
+def show_traffic_dashboard():
+    """
+    Reads the log file and displays simple analytics in the sidebar.
+    """
+    if os.path.exists(TRAFFIC_LOG_FILE):
+        try:
+            df_traffic = pd.read_csv(TRAFFIC_LOG_FILE)
+            df_traffic["Timestamp"] = pd.to_datetime(df_traffic["Timestamp"])
+            
+            # Metric 1: Total Visits
+            total_visits = len(df_traffic[df_traffic["Event"] == "App Visit"])
+            
+            # Metric 2: Total Optimizations Run
+            total_optims = len(df_traffic[df_traffic["Event"] == "Optimization Run"])
+            
+            st.sidebar.markdown("---")
+            st.sidebar.header("📊 Traffic Monitor")
+            
+            col1, col2 = st.sidebar.columns(2)
+            col1.metric("Visits", total_visits)
+            col2.metric("Uses", total_optims)
+            
+            # Simple Chart: Events over time
+            st.sidebar.caption("Activity Log")
+            st.sidebar.dataframe(df_traffic.tail(5), hide_index=True)
+            
+        except Exception as e:
+            st.sidebar.error(f"Log Error: {e}")
 
 # PAGE CONFIGURATION
 st.set_page_config(
@@ -50,6 +100,10 @@ def check_password():
 
 if not check_password():
     st.stop()
+
+if "visit_logged" not in st.session_state:
+    log_event("App Visit")
+    st.session_state["visit_logged"] = True
 
 # SIDEBAR
 st.sidebar.title("Configuration")
